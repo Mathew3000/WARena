@@ -1,4 +1,4 @@
-// Client-side WARena Game Engine
+// Client-side Teeworlds Clone Game Engine
 
 // Canvas roundRect polyfill for compatibility
 if (!CanvasRenderingContext2D.prototype.roundRect) {

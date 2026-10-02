@@ -1,4 +1,4 @@
-// Shared constants for the WARena game
+// Shared constants for the Teeworlds clone game
 
 export const CONSTANTS = {
   // World dimensions (in tiles)

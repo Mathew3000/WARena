@@ -1,7 +1,7 @@
 {
-  "name": "warena",
+  "name": "teeworlds-clone",
   "version": "1.0.0",
-  "description": "A browser-based multiplayer arena shooter",
+  "description": "A browser-based Teeworlds-style multiplayer arena shooter",
   "type": "module",
   "scripts": {
     "server": "node server/index.js",

@@ -338,8 +338,8 @@ export class GameEngine {
         const bottomY = newY + PLAYER_RADIUS;
         const groundTileRow = Math.floor(bottomY / ts);
         if (groundTileRow >= 0 && groundTileRow < this.map.length) {
-          // Snap to the top edge of the tile minus player radius, with small offset so player sits cleanly on surface without triggering collision
-          player.y = groundTileRow * ts - PLAYER_RADIUS - 2;
+          // Snap flush with ground surface (no offset) — deadzone below prevents vibration
+          player.y = groundTileRow * ts - PLAYER_RADIUS;
         } else {
           player.y = newY - PLAYER_RADIUS;
         }

@@ -171,8 +171,8 @@ class GameClient {
         return;
       }
       
-      // Toggle music with M key
-      if (e.key === 'm' || e.key === 'M') {
+      // Toggle music with O key (replaced button)
+      if (e.key === 'o' || e.key === 'O') {
         if (!this.chatMode) {
           this._toggleMusic();
           return;
@@ -624,17 +624,6 @@ class GameClient {
     document.getElementById('chat-box').style.display = 'block';
     document.querySelector('.controls-hint').style.display = 'block';
     document.getElementById('weapon-hud').style.display = 'flex';
-
-    // Show music toggle button and wire up click handler
-    const musicBtn = document.getElementById('music-toggle-btn');
-    if (musicBtn) {
-      musicBtn.style.display = 'block';
-      musicBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        this._toggleMusic();
-      });
-    }
 
     // Event delegation for vote options (survives innerHTML rebuilds)
     const voteContainer = document.getElementById('vote-container');
@@ -3292,158 +3281,298 @@ class GameClient {
   _startMusic() {
     if (!this.audioCtx || !this.musicEnabled) return;
     if (this.musicInterval) return; // Already running
-    
+
     this._resumeAudio();
-    
+
     const ctx = this.audioCtx;
-    const bpm = 128;
+    const bpm = 118; // Synthwave tempo — slower, more atmospheric
     const beatDuration = 60 / bpm;
     const stepDuration = beatDuration * 0.5; // 16th notes
-    
-    // Master gain for music (quiet background)
+
+    // Master gain (quiet background)
     const masterGain = ctx.createGain();
-    masterGain.gain.value = 0.08; // Very quiet
+    masterGain.gain.value = 0.07;
     masterGain.connect(ctx.destination);
-    
-    // Bass line pattern (extended C minor progression, 64 steps = 16 bars at 128 BPM)
+
+    // Reverb send for atmospheric depth
+    const reverbGain = ctx.createGain();
+    reverbGain.gain.value = 0.15;
+    const convolver = ctx.createConvolver();
+    const reverbLength = ctx.sampleRate * 2;
+    const impulse = ctx.createBuffer(2, reverbLength, ctx.sampleRate);
+    for (let ch = 0; ch < 2; ch++) {
+      const data = impulse.getChannelData(ch);
+      for (let i = 0; i < reverbLength; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / reverbLength, 2.5);
+      }
+    }
+    convolver.buffer = impulse;
+    convolver.connect(reverbGain);
+    reverbGain.connect(masterGain);
+
+    // Delay send for arpeggio
+    const delayGain = ctx.createGain();
+    delayGain.gain.value = 0.25;
+    const delayNode = ctx.createDelay(1.0);
+    delayNode.delayTime.value = beatDuration * 0.75; // dotted eighth delay
+    const delayFilter = ctx.createBiquadFilter();
+    delayFilter.type = 'lowpass';
+    delayFilter.frequency.value = 3000;
+    delayNode.connect(delayFilter);
+    delayFilter.connect(delayGain);
+    delayGain.connect(masterGain);
+
+    // ── Synthwave bass: A minor / E minor progression (chorus via dual detuned saws) ──
     const bassNotes = [
-      65.41, 65.41, 0, 0, 77.78, 77.78, 0, 0, // C2 bar 1
-      87.31, 87.31, 0, 0, 73.42, 73.42, 0, 0, // F2 bar 2
-      65.41, 65.41, 0, 0, 98.00, 98.00, 0, 0, // C2 bar 3
-      77.78, 77.78, 0, 0, 65.41, 65.41, 0, 0, // Eb2 bar 4
-      65.41, 65.41, 0, 0, 77.78, 77.78, 0, 0, // C2 bar 5 (variation)
-      82.41, 82.41, 0, 0, 73.42, 73.42, 0, 0, // D2 bar 6
-      65.41, 65.41, 0, 0, 98.00, 98.00, 0, 0, // C2 bar 7
-      77.78, 77.78, 0, 0, 65.41, 65.41, 0, 0, // Eb2 bar 8 (resolution)
+      110.00, 110.00, 0, 0, 130.81, 130.81, 0, 0, // A2 bar 1
+      98.00, 98.00, 0, 0, 110.00, 110.00, 0, 0,   // G2 bar 2
+      110.00, 110.00, 0, 0, 87.31, 87.31, 0, 0,   // A2 / F2 bar 3
+      98.00, 98.00, 0, 0, 110.00, 110.00, 0, 0,   // G2 → A2 bar 4 (resolution)
+      110.00, 110.00, 0, 0, 130.81, 130.81, 0, 0, // A2 bar 5
+      98.00, 98.00, 0, 0, 73.42, 73.42, 0, 0,     // G2 / D2 bar 6
+      110.00, 110.00, 0, 0, 87.31, 87.31, 0, 0,   // A2 / F2 bar 7
+      98.00, 98.00, 0, 0, 110.00, 110.00, 0, 0,   // G2 → A2 bar 8 (resolution)
     ];
 
-    const bassGain = ctx.createGain();
-    bassGain.gain.value = 0.5;
-    bassGain.connect(masterGain);
-
-    // Kick drum pattern (extended, 64 steps — quarter notes at positions 0,4,8,... with fills)
     const kickPattern = [
       1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, // bar 1: four-on-floor
-      1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, // bar 2: syncopated
+      1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, // bar 2: steady
       1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, // bar 3: four-on-floor
       1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 1, // bar 4: fill ending
       1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, // bar 5: four-on-floor
-      1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, // bar 6: varied
+      1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, // bar 6: steady
       1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, // bar 7: four-on-floor
-      1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, // bar 8: fill ending
+      1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 1, // bar 8: fill ending
     ];
 
-    // Hi-hat pattern (extended — closed on beats, open on off-beats with variation)
+    const snarePattern = [
+      0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, // bar 1: beats 2,4
+      0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, // bar 2
+      0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, // bar 3
+      0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, // bar 4
+      0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, // bar 5
+      0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, // bar 6
+      0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, // bar 7
+      0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, // bar 8
+    ];
+
     const hihatPattern = [
-      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // bar 1: steady
-      1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, // bar 2: sparse
-      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // bar 3: steady
-      1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, // bar 4: building
-      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // bar 5: steady
-      1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, // bar 6: sparse
-      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // bar 7: steady
-      1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, // bar 8: building
+      0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, // bar 1: off-beats only
+      0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, // bar 2: sparse ending
+      0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, // bar 3
+      0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, // bar 4: open hat fill
+      0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, // bar 5
+      0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, // bar 6: sparse ending
+      0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, // bar 7
+      0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, // bar 8: open hat fill
     ];
 
-    // Synth arp pattern (extended C minor arpeggio with movement)
+    // Synthwave arpeggio: A minor / E minor with dramatic movement
     const arpNotes = [
-      523.25, 622.25, 783.99, 622.25, 523.25, 783.99, 622.25, 523.25, // C minor
-      659.25, 783.99, 987.77, 783.99, 659.25, 987.77, 783.99, 659.25, // Eb major
-      523.25, 622.25, 783.99, 622.25, 523.25, 783.99, 622.25, 523.25, // C minor
-      587.33, 783.99, 880.00, 783.99, 587.33, 880.00, 783.99, 587.33, // D dim
-      523.25, 622.25, 783.99, 622.25, 523.25, 783.99, 622.25, 523.25, // C minor
-      659.25, 783.99, 987.77, 783.99, 659.25, 987.77, 783.99, 659.25, // Eb major
-      523.25, 622.25, 783.99, 622.25, 523.25, 783.99, 622.25, 523.25, // C minor
-      587.33, 783.99, 880.00, 783.99, 587.33, 880.00, 783.99, 587.33, // D dim
+      220.00, 329.63, 440.00, 329.63, 220.00, 440.00, 329.63, 220.00, // A minor
+      261.63, 392.00, 523.25, 392.00, 261.63, 523.25, 392.00, 261.63, // C major
+      220.00, 329.63, 440.00, 329.63, 220.00, 440.00, 329.63, 220.00, // A minor
+      196.00, 293.66, 392.00, 293.66, 196.00, 392.00, 293.66, 196.00, // G major
+      220.00, 329.63, 440.00, 329.63, 220.00, 440.00, 329.63, 220.00, // A minor
+      261.63, 392.00, 523.25, 392.00, 261.63, 523.25, 392.00, 261.63, // C major
+      220.00, 329.63, 440.00, 329.63, 220.00, 440.00, 329.63, 220.00, // A minor
+      196.00, 293.66, 392.00, 293.66, 196.00, 392.00, 293.66, 196.00, // G major
     ];
 
     let step = 0;
-    
+
     const playStep = () => {
       if (!this.musicEnabled) return;
-      
+
       const now = ctx.currentTime;
-      const beatIndex = Math.floor(step / 2) % 32; // Quarter-note position in 64-step pattern (32 quarter notes)
+      const beatIndex = Math.floor(step / 2) % 32;
       const isOffBeat = step % 2 === 1;
-      
-      // Kick drum on beats
+
+      // ── Kick: gated reverb style (sharp attack, medium decay through noise gate) ──
       if (kickPattern[beatIndex]) {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(150, now);
-        osc.frequency.exponentialRampToValueAtTime(30, now + 0.12);
-        gain.gain.setValueAtTime(0.8, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-        osc.connect(gain).connect(masterGain);
-        osc.start(now);
-        osc.stop(now + 0.15);
-      }
-      
-      // Hi-hat on every step
-      if (hihatPattern[beatIndex]) {
-        const bufferSize = ctx.sampleRate * 0.03;
-        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) {
-          data[i] = (Math.random() * 2 - 1) * (isOffBeat ? 0.3 : 0.15);
+        const kickOsc = ctx.createOscillator();
+        const kickGain = ctx.createGain();
+        kickOsc.type = 'sine';
+        kickOsc.frequency.setValueAtTime(180, now);
+        kickOsc.frequency.exponentialRampToValueAtTime(40, now + 0.08);
+        kickGain.gain.setValueAtTime(1.0, now);
+        kickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+        kickOsc.connect(kickGain).connect(masterGain);
+        kickOsc.start(now);
+        kickOsc.stop(now + 0.25);
+
+        // Gated reverb tail
+        const revKick = ctx.createBufferSource();
+        const revLen = ctx.sampleRate * 0.3;
+        const revBuf = ctx.createBuffer(1, revLen, ctx.sampleRate);
+        const revData = revBuf.getChannelData(0);
+        for (let i = 0; i < revLen; i++) {
+          revData[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / revLen, 3);
         }
-        const noise = ctx.createBufferSource();
-        noise.buffer = buffer;
-        const filter = ctx.createBiquadFilter();
-        filter.type = 'highpass';
-        filter.frequency.value = 8000;
-        const gain = ctx.createGain();
-        gain.gain.setValueAtTime(isOffBeat ? 0.2 : 0.1, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
-        noise.connect(filter).connect(gain).connect(masterGain);
-        noise.start(now);
-        noise.stop(now + 0.03);
+        revKick.buffer = revBuf;
+        const revGate = ctx.createGain();
+        revGate.gain.setValueAtTime(0.5, now);
+        revGate.gain.exponentialRampToValueAtTime(0.001, now + 0.2); // noise gate closes
+        revKick.connect(revGate).connect(masterGain);
+        revKick.start(now);
+        revKick.stop(now + 0.2);
       }
-      
-      // Bass line on beats
-      if (!isOffBeat) {
-        const osc = ctx.createOscillator();
-        osc.type = 'sawtooth';
-        osc.frequency.value = bassNotes[beatIndex];
-        const filter = ctx.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.value = 300;
-        filter.Q.value = 5;
-        const gain = ctx.createGain();
-        gain.gain.setValueAtTime(0.4, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + beatDuration * 0.8);
-        osc.connect(filter).connect(gain).connect(bassGain);
-        osc.start(now);
-        osc.stop(now + beatDuration);
+
+      // ── Snare: bright noise burst on beats 2 and 4 ──
+      if (snarePattern[beatIndex]) {
+        const snareLen = ctx.sampleRate * 0.15;
+        const snareBuf = ctx.createBuffer(1, snareLen, ctx.sampleRate);
+        const snareData = snareBuf.getChannelData(0);
+        for (let i = 0; i < snareLen; i++) {
+          snareData[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / snareLen, 2);
+        }
+        const snareSrc = ctx.createBufferSource();
+        snareSrc.buffer = snareBuf;
+
+        // Tone body for punch
+        const snareTone = ctx.createOscillator();
+        const toneGain = ctx.createGain();
+        snareTone.type = 'triangle';
+        snareTone.frequency.value = 180;
+        toneGain.gain.setValueAtTime(0.4, now);
+        toneGain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+        snareTone.connect(toneGain).connect(masterGain);
+        snareTone.start(now);
+        snareTone.stop(now + 0.06);
+
+        // Noise through bandpass
+        const snareFilter = ctx.createBiquadFilter();
+        snareFilter.type = 'bandpass';
+        snareFilter.frequency.value = 4000;
+        snareFilter.Q.value = 1.5;
+        const snareGain = ctx.createGain();
+        snareGain.gain.setValueAtTime(0.6, now);
+        snareGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+        snareSrc.connect(snareFilter).connect(snareGain).connect(masterGain);
+        snareSrc.start(now);
+        snareSrc.stop(now + 0.12);
+
+        // Send to reverb for that big gated sound
+        snareSrc.connect(convolver);
       }
-      
-      // Synth arpeggio on every step (quiet)
-      const arpOsc = ctx.createOscillator();
-      arpOsc.type = 'square';
-      arpOsc.frequency.value = arpNotes[step % arpNotes.length];
-      const arpFilter = ctx.createBiquadFilter();
-      arpFilter.type = 'lowpass';
-      arpFilter.frequency.value = 2000;
-      const arpGain = ctx.createGain();
-      arpGain.gain.setValueAtTime(0.06, now);
-      arpGain.gain.exponentialRampToValueAtTime(0.001, now + stepDuration * 0.8);
-      arpOsc.connect(arpFilter).connect(arpGain).connect(masterGain);
-      arpOsc.start(now);
-      arpOsc.stop(now + stepDuration);
-      
+
+      // ── Hi-hat: tight closed hats on off-beats, open hats sparingly ──
+      if (hihatPattern[beatIndex]) {
+        const hatLen = ctx.sampleRate * 0.04;
+        const hatBuf = ctx.createBuffer(1, hatLen, ctx.sampleRate);
+        const hatData = hatBuf.getChannelData(0);
+        for (let i = 0; i < hatLen; i++) {
+          hatData[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / hatLen, 6);
+        }
+        const hatSrc = ctx.createBufferSource();
+        hatSrc.buffer = hatBuf;
+
+        const hatFilter = ctx.createBiquadFilter();
+        hatFilter.type = 'highpass';
+        hatFilter.frequency.value = 9000;
+
+        const isFillBeat = beatIndex >= 28 && beatIndex <= 31; // fill bars
+        const isOpen = isOffBeat && isFillBeat;
+
+        if (isOpen) {
+          const hatGain = ctx.createGain();
+          hatGain.gain.setValueAtTime(0.15, now);
+          hatGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+          hatSrc.connect(hatFilter).connect(hatGain).connect(masterGain);
+          hatSrc.start(now);
+          hatSrc.stop(now + 0.15);
+        } else {
+          const hatGain = ctx.createGain();
+          hatGain.gain.setValueAtTime(0.08, now);
+          hatGain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+          hatSrc.connect(hatFilter).connect(hatGain).connect(masterGain);
+          hatSrc.start(now);
+          hatSrc.stop(now + 0.03);
+        }
+      }
+
+      // ── Bass: dual detuned saws (chorus effect) with lowpass filter ──
+      if (!isOffBeat && bassNotes[beatIndex] > 0) {
+        const freq = bassNotes[beatIndex];
+        const chorusDetune = 8; // cents
+
+        // Detune left
+        const bassOsc1 = ctx.createOscillator();
+        bassOsc1.type = 'sawtooth';
+        bassOsc1.frequency.value = freq;
+        bassOsc1.detune.value = -chorusDetune;
+        const bassGain1 = ctx.createGain();
+        bassGain1.gain.setValueAtTime(0.35, now);
+        bassGain1.gain.exponentialRampToValueAtTime(0.001, now + beatDuration * 0.7);
+
+        // Detune right
+        const bassOsc2 = ctx.createOscillator();
+        bassOsc2.type = 'sawtooth';
+        bassOsc2.frequency.value = freq;
+        bassOsc2.detune.value = chorusDetune;
+        const bassGain2 = ctx.createGain();
+        bassGain2.gain.setValueAtTime(0.35, now);
+        bassGain2.gain.exponentialRampToValueAtTime(0.001, now + beatDuration * 0.7);
+
+        // Mono sum through lowpass
+        const bassSum = ctx.createGain();
+        bassSum.gain.value = 0.5;
+        const bassFilter = ctx.createBiquadFilter();
+        bassFilter.type = 'lowpass';
+        bassFilter.frequency.value = 250;
+        bassFilter.Q.value = 2;
+
+        bassOsc1.connect(bassGain1).connect(bassSum);
+        bassOsc2.connect(bassGain2).connect(bassSum);
+        bassSum.connect(bassFilter).connect(masterGain);
+
+        bassOsc1.start(now);
+        bassOsc1.stop(now + beatDuration);
+        bassOsc2.start(now);
+        bassOsc2.stop(now + beatDuration);
+      }
+
+      // ── Lead arpeggio: supersaw with delay and reverb (classic synthwave) ──
+      const arpFreq = arpNotes[step % arpNotes.length];
+      if (arpFreq > 0) {
+        // Dual detuned saws for supersaw thickness
+        for (let d = -12; d <= 12; d += 24) {
+          const arpOsc = ctx.createOscillator();
+          arpOsc.type = 'sawtooth';
+          arpOsc.frequency.value = arpFreq;
+          arpOsc.detune.value = d;
+
+          const arpFilter = ctx.createBiquadFilter();
+          arpFilter.type = 'lowpass';
+          arpFilter.frequency.value = 4000;
+          arpFilter.Q.value = 1;
+
+          const arpGain = ctx.createGain();
+          arpGain.gain.setValueAtTime(0.04, now);
+          arpGain.gain.exponentialRampToValueAtTime(0.001, now + stepDuration * 0.6);
+
+          arpOsc.connect(arpFilter).connect(arpGain);
+          arpGain.connect(masterGain); // dry
+          arpGain.connect(delayNode);  // delay send
+          arpGain.connect(convolver);  // reverb send
+
+          arpOsc.start(now);
+          arpOsc.stop(now + stepDuration);
+        }
+      }
+
       step++;
     };
-    
+
     // Play initial steps immediately
     for (let i = 0; i < 4; i++) playStep();
-    
+
     // Schedule subsequent steps
     this.musicInterval = setInterval(() => {
       if (this.musicEnabled) playStep();
     }, stepDuration * 1000);
-    
-    this.musicNodes.push(masterGain);
+
+    this.musicNodes.push(masterGain, reverbGain, delayGain);
   }
   
   _stopMusic() {
@@ -3468,12 +3597,6 @@ class GameClient {
       notif.textContent = this.musicEnabled ? '🎵 Music ON' : '🔇 Music OFF';
       notif.style.display = 'block';
       setTimeout(() => { notif.style.display = 'none'; }, 1500);
-    }
-
-    // Update button icon
-    const musicBtn = document.getElementById('music-toggle-btn');
-    if (musicBtn) {
-      musicBtn.textContent = this.musicEnabled ? '\uD83C\uDFB5' : '\uD83D\uDD07';
     }
   }
   

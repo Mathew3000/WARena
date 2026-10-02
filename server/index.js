@@ -570,7 +570,7 @@ function gameLoop() {
 
 // ─── Start server ─────────────────────────────────────────
 httpServer.listen(PORT, HOST, () => {
-  console.log(`\n=== Teeworlds Clone Server ===`);
+  console.log(`\n=== WARena Server ===`);
   console.log(`Server running on http://${HOST}:${PORT}`);
   console.log(`WebSocket endpoint: ws://${HOST}:${PORT}`);
   console.log(`Editor: http://${HOST}:${PORT}/editor`);

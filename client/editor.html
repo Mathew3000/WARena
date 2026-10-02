@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Map Editor — Teeworlds Clone</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      background: #1a1a2e;
+      color: white;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      overflow: hidden;
+      height: 100vh;
+    }
+
+    /* Top toolbar */
+    #toolbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 48px;
+      background: rgba(0, 0, 0, 0.9);
+      border-bottom: 2px solid rgba(255, 255, 255, 0.15);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 8px;
+      z-index: 100;
+    }
+
+    #toolbar button {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: white;
+      padding: 6px 14px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.15s;
+    }
+
+    #toolbar button:hover {
+      background: rgba(255, 255, 255, 0.2);
+      border-color: rgba(255, 255, 255, 0.4);
+    }
+
+    #toolbar button.primary {
+      background: rgba(74, 158, 255, 0.3);
+      border-color: rgba(74, 158, 255, 0.6);
+    }
+
+    #toolbar button.primary:hover {
+      background: rgba(74, 158, 255, 0.5);
+    }
+
+    .toolbar-sep {
+      width: 1px;
+      height: 28px;
+      background: rgba(255, 255, 255, 0.15);
+      margin: 0 4px;
+    }
+
+    #toolbar .title {
+      font-weight: bold;
+      font-size: 15px;
+      margin-right: auto;
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    /* Canvas area */
+    #editor-canvas {
+      position: fixed;
+      top: 48px;
+      left: 0;
+      right: 260px;
+      bottom: 0;
+      background: #0a0a1a;
+      cursor: crosshair;
+    }
+
+    /* Right sidebar */
+    #sidebar {
+      position: fixed;
+      top: 48px;
+      right: 0;
+      width: 260px;
+      bottom: 0;
+      background: rgba(10, 10, 26, 0.95);
+      border-left: 2px solid rgba(255, 255, 255, 0.1);
+      overflow-y: auto;
+      padding: 16px;
+    }
+
+    #sidebar h3 {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: rgba(255, 255, 255, 0.5);
+      margin-bottom: 10px;
+    }
+
+    /* Tile palette */
+    .tile-palette {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin-bottom: 20px;
+    }
+
+    .tile-btn {
+      aspect-ratio: 1;
+      border: 2px solid rgba(255, 255, 255, 0.15);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      color: white;
+      text-align: center;
+      padding: 2px;
+    }
+
+    .tile-btn:hover {
+      border-color: rgba(255, 255, 255, 0.4);
+      transform: scale(1.05);
+    }
+
+    .tile-btn.selected {
+      border-color: #4a9eff;
+      box-shadow: 0 0 8px rgba(74, 158, 255, 0.4);
+    }
+
+    /* Map info */
+    .map-info {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 6px;
+      padding: 10px;
+      margin-bottom: 16px;
+      font-size: 12px;
+    }
+
+    .map-info div {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+
+    .map-info div:last-child { margin-bottom: 0; }
+
+    /* Brush size */
+    .brush-control {
+      margin-bottom: 20px;
+    }
+
+    .brush-control label {
+      display: block;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.6);
+      margin-bottom: 6px;
+    }
+
+    .brush-control input[type="range"] {
+      width: 100%;
+      accent-color: #4a9eff;
+    }
+
+    /* Back link */
+    #back-link {
+      position: fixed;
+      bottom: 16px;
+      left: 16px;
+      color: rgba(255, 255, 255, 0.4);
+      text-decoration: none;
+      font-size: 13px;
+      z-index: 100;
+    }
+
+    #back-link:hover {
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    /* Status bar */
+    #status-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 260px;
+      height: 24px;
+      background: rgba(0, 0, 0, 0.8);
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.4);
+      gap: 20px;
+      z-index: 100;
+    }
+
+    /* Save dialog */
+    #save-dialog {
+      display: none;
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(20, 20, 40, 0.98);
+      border: 2px solid rgba(74, 158, 255, 0.5);
+      border-radius: 12px;
+      padding: 24px;
+      z-index: 200;
+      min-width: 360px;
+    }
+
+    #save-dialog h3 {
+      margin-bottom: 16px;
+      font-size: 16px;
+    }
+
+    #save-dialog input[type="text"] {
+      width: 100%;
+      padding: 8px 12px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: white;
+      border-radius: 4px;
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+
+    #save-dialog .dialog-buttons {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    /* Overlay */
+    #overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 190;
+    }
+  </style>
+</head>
+<body>
+  <!-- Toolbar -->
+  <div id="toolbar">
+    <span class="title">🗺️ Map Editor</span>
+    <button id="btn-new" title="Create a new blank map">New Map</button>
+    <button id="btn-load" title="Load a saved map from file">Load Map</button>
+    <input type="file" id="load-input" accept=".json" style="display:none;">
+    <button id="btn-save" class="primary" title="Save current map as JSON">Save Map</button>
+    <div class="toolbar-sep"></div>
+    <button id="btn-undo" title="Undo last edit (Ctrl+Z)">↩ Undo</button>
+    <button id="btn-clear" title="Clear all non-border tiles">Clear</button>
+  </div>
+
+  <!-- Canvas -->
+  <canvas id="editor-canvas"></canvas>
+
+  <!-- Status bar -->
+  <div id="status-bar">
+    <span id="status-tile">Tile: (0, 0)</span>
+    <span id="status-size">Map: 200 × 60</span>
+    <span id="status-tool">Tool: Draw Solid</span>
+  </div>
+
+  <!-- Sidebar -->
+  <div id="sidebar">
+    <h3>Tile Palette</h3>
+    <div class="tile-palette" id="tile-palette"></div>
+
+    <h3>Brush Size</h3>
+    <div class="brush-control">
+      <label>Radius: <span id="brush-size-val">1</span></label>
+      <input type="range" id="brush-size" min="1" max="5" value="1">
+    </div>
+
+    <h3>Map Info</h3>
+    <div class="map-info">
+      <div><span>Tiles:</span><span id="info-tiles">0</span></div>
+      <div><span>Solid:</span><span id="info-solid">0</span></div>
+      <div><span>Lava:</span><span id="info-lava">0</span></div>
+      <div><span>Water:</span><span id="info-water">0</span></div>
+    </div>
+
+    <h3>Quick Fill</h3>
+    <div style="display:flex;flex-direction:column;gap:6px;">
+      <button class="quick-fill" data-action="fill-floor" style="padding:8px;background:rgba(74,124,89,0.3);border:1px solid rgba(74,124,89,0.5);color:white;border-radius:4px;cursor:pointer;font-size:12px;">Fill Floor</button>
+      <button class="quick-fill" data-action="fill-walls" style="padding:8px;background:rgba(139,115,85,0.3);border:1px solid rgba(139,115,85,0.5);color:white;border-radius:4px;cursor:pointer;font-size:12px;">Add Border Walls</button>
+    </div>
+  </div>
+
+  <!-- Save dialog -->
+  <div id="overlay"></div>
+  <div id="save-dialog">
+    <h3>Save Map</h3>
+    <input type="text" id="map-name-input" placeholder="Enter map name..." maxlength="40">
+    <div class="dialog-buttons">
+      <button id="btn-save-cancel" style="padding:6px 14px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:white;border-radius:4px;cursor:pointer;">Cancel</button>
+      <button id="btn-save-confirm" style="padding:6px 14px;background:rgba(74,158,255,0.3);border:1px solid rgba(74,158,255,0.6);color:white;border-radius:4px;cursor:pointer;">Save</button>
+    </div>
+  </div>
+
+  <!-- Back to game link -->
+  <a href="/" id="back-link">← Back to Game</a>
+
+  <script type="module">
+    import { CONSTANTS, createDefaultMap, MAP_REGISTRY } from '/shared/constants.js';
+
+    // ─── State ──────────────────────────────────────────────
+    const TILE_SOLID = CONSTANTS.TILE_SOLID;
+    const TILE_WATER = CONSTANTS.TILE_WATER;
+    const TILE_LAVA = CONSTANTS.TILE_LAVA;
+    const TILE_EMPTY = CONSTANTS.TILE_EMPTY;
+
+    let map = [];
+    let selectedTile = TILE_SOLID;
+    let brushSize = 1;
+    let isDrawing = false;
+    let undoStack = [];
+    let cameraX = 0;
+    let cameraY = 0;
+    let isPanning = false;
+    let panStartX = 0, panStartY = 0;
+    let camStartX = 0, camStartY = 0;
+
+    // Tile definitions for palette
+    const TILE_DEFS = [
+      { value: TILE_EMPTY, label: 'Empty', color: '#1a1a2e' },
+      { value: TILE_SOLID, label: 'Solid', color: '#8b7355' },
+      { value: TILE_WATER, label: 'Water', color: '#40a4df' },
+      { value: TILE_LAVA, label: 'Lava', color: '#ff6600' },
+    ];
+
+    // ─── DOM refs ──────────────────────────────────────────
+    const canvas = document.getElementById('editor-canvas');
+    const ctx = canvas.getContext('2d');
+    const paletteEl = document.getElementById('tile-palette');
+    const brushSlider = document.getElementById('brush-size');
+    const brushVal = document.getElementById('brush-size-val');
+    const statusTile = document.getElementById('status-tile');
+    const statusTool = document.getElementById('status-tool');
+
+    // ─── Init map ──────────────────────────────────────────
+    function initMap(template) {
+      const h = CONSTANTS.WORLD_HEIGHT;
+      const w = CONSTANTS.WORLD_WIDTH;
+      map = [];
+      for (let y = 0; y < h; y++) {
+        map[y] = [];
+        for (let x = 0; x < w; x++) {
+          if (template) {
+            map[y][x] = template[y]?.[x] ?? TILE_EMPTY;
+          } else {
+            // Border walls only
+            if (x === 0 || y === 0 || x >= w - 1 || y >= h - 1) {
+              map[y][x] = TILE_SOLID;
+            } else {
+              map[y][x] = TILE_EMPTY;
+            }
+          }
+        }
+      }
+      undoStack = [];
+      updateMapInfo();
+    }
+
+    // ─── Resize canvas ─────────────────────────────────────
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+      render();
+    }
+
+    // ─── Render ────────────────────────────────────────────
+    function render() {
+      const ts = CONSTANTS.TILE_SIZE;
+      ctx.fillStyle = '#0a0a1a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const offsetX = -cameraX;
+      const offsetY = -cameraY;
+
+      // Calculate visible tile range
+      const startCol = Math.max(0, Math.floor(-offsetX / ts));
+      const endCol = Math.min(map[0]?.length ?? 0, Math.ceil((-offsetX + canvas.width) / ts));
+      const startRow = Math.max(0, Math.floor(-offsetY / ts));
+      const endRow = Math.min(map.length, Math.ceil((-offsetY + canvas.height) / ts));
+
+      // Draw tiles
+      for (let y = startRow; y < endRow; y++) {
+        for (let x = startCol; x < endCol; x++) {
+          const tile = map[y]?.[x];
+          if (!tile || tile === TILE_EMPTY) continue;
+
+          let color = '#8b7355'; // solid default
+          if (tile === TILE_WATER) color = 'rgba(64, 164, 223, 0.5)';
+          else if (tile === TILE_LAVA) color = '#ff6600';
+
+          ctx.fillStyle = color;
+          ctx.fillRect(x * ts + offsetX, y * ts + offsetY, ts, ts);
+
+          // Grid lines
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+          ctx.strokeRect(x * ts + offsetX, y * ts + offsetY, ts, ts);
+        }
+      }
+
+      // Draw grid overlay (subtle)
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+      ctx.lineWidth = 1;
+      for (let x = startCol; x <= endCol; x++) {
+        const px = x * ts + offsetX;
+        ctx.beginPath();
+        ctx.moveTo(px, Math.max(0, offsetY));
+        ctx.lineTo(px, Math.min(map.length * ts + offsetY, canvas.height));
+        ctx.stroke();
+      }
+      for (let y = startRow; y <= endRow; y++) {
+        const py = y * ts + offsetY;
+        ctx.beginPath();
+        ctx.moveTo(Math.max(0, offsetX), py);
+        ctx.lineTo(Math.min(map[0]?.length * ts + offsetX ?? 0, canvas.width), py);
+        ctx.stroke();
+      }
+
+      // Draw border highlight
+      const w = CONSTANTS.WORLD_WIDTH;
+      const h = CONSTANTS.WORLD_HEIGHT;
+      ctx.strokeStyle = 'rgba(255, 100, 100, 0.3)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(offsetX, offsetY, w * ts, h * ts);
+    }
+
+    // ─── Tile painting ─────────────────────────────────────
+    function paintTile(mx, my) {
+      const ts = CONSTANTS.TILE_SIZE;
+      const tx = Math.floor((mx + cameraX) / ts);
+      const ty = Math.floor((my + cameraY) / ts);
+
+      if (tx < 0 || ty < 0 || !map[ty] || ty >= map.length) return;
+
+      // Save state for undo
+      const affectedTiles = [];
+      
+      // Paint in a brush radius
+      for (let dy = -brushSize + 1; dy < brushSize; dy++) {
+        for (let dx = -brushSize + 1; dx < brushSize; dx++) {
+          const nx = tx + dx;
+          const ny = ty + dy;
+          if (ny >= 0 && ny < map.length && nx >= 0 && nx < (map[0]?.length ?? 0)) {
+            // Don't paint border tiles
+            if (nx === 0 || ny === 0 || nx >= CONSTANTS.WORLD_WIDTH - 1 || ny >= CONSTANTS.WORLD_HEIGHT - 1) continue;
+            
+            affectedTiles.push({ x: nx, y: ny, oldVal: map[ny][nx] });
+            map[ny][nx] = selectedTile;
+          }
+        }
+      }
+
+      if (affectedTiles.length > 0) {
+        undoStack.push(affectedTiles);
+        updateMapInfo();
+        render();
+      }
+    }
+
+    // ─── Undo ──────────────────────────────────────────────
+    function undo() {
+      if (undoStack.length === 0) return;
+      const lastOp = undoStack.pop();
+      for (const t of lastOp) {
+        map[t.y][t.x] = t.oldVal;
+      }
+      updateMapInfo();
+      render();
+    }
+
+    // ─── Map info ──────────────────────────────────────────
+    function updateMapInfo() {
+      let solid = 0, lava = 0, water = 0, total = 0;
+      for (let y = 0; y < map.length; y++) {
+        for (let x = 0; x < (map[y]?.length ?? 0); x++) {
+          const t = map[y][x];
+          if (t !== TILE_EMPTY) total++;
+          if (t === TILE_SOLID) solid++;
+          if (t === TILE_LAVA) lava++;
+          if (t === TILE_WATER) water++;
+        }
+      }
+      document.getElementById('info-tiles').textContent = total;
+      document.getElementById('info-solid').textContent = solid;
+      document.getElementById('info-lava').textContent = lava;
+      document.getElementById('info-water').textContent = water;
+    }
+
+    // ─── Clear map (non-border) ────────────────────────────
+    function clearMap() {
+      const h = CONSTANTS.WORLD_HEIGHT;
+      const w = CONSTANTS.WORLD_WIDTH;
+      const affectedTiles = [];
+      for (let y = 1; y < h - 1; y++) {
+        for (let x = 1; x < w - 1; x++) {
+          if (map[y][x] !== TILE_EMPTY) {
+            affectedTiles.push({ x, y, oldVal: map[y][x] });
+            map[y][x] = TILE_EMPTY;
+          }
+        }
+      }
+      if (affectedTiles.length > 0) {
+        undoStack.push(affectedTiles);
+        updateMapInfo();
+        render();
+      }
+    }
+
+    // ─── Quick fill floor ──────────────────────────────────
+    function fillFloor() {
+      const h = CONSTANTS.WORLD_HEIGHT;
+      const w = CONSTANTS.WORLD_WIDTH;
+      const affectedTiles = [];
+      
+      for (let y = 1; y < h - 1; y++) {
+        for (let x = 1; x < w - 1; x++) {
+          if (map[y][x] === TILE_EMPTY) {
+            // Check if there's solid below or adjacent
+            const hasSolidBelow = y + 1 < h && map[y + 1][x] !== TILE_EMPTY;
+            const hasSolidAbove = y > 0 && map[y - 1][x] !== TILE_EMPTY;
+            if (hasSolidBelow || hasSolidAbove) {
+              affectedTiles.push({ x, y, oldVal: map[y][x] });
+              map[y][x] = TILE_SOLID;
+            }
+          }
+        }
+      }
+      
+      if (affectedTiles.length > 0) {
+        undoStack.push(affectedTiles);
+        updateMapInfo();
+        render();
+      }
+    }
+
+    // ─── Save/Load ─────────────────────────────────────────
+    function saveMap() {
+      const dialog = document.getElementById('save-dialog');
+      const overlay = document.getElementById('overlay');
+      dialog.style.display = 'block';
+      overlay.style.display = 'block';
+      document.getElementById('map-name-input').focus();
+    }
+
+    function confirmSave() {
+      const name = document.getElementById('map-name-input').value.trim();
+      if (!name) return;
+
+      // Build map data
+      const mapData = [];
+      for (let y = 0; y < map.length; y++) {
+        mapData.push(map[y].join(','));
+      }
+
+      const saveObj = {
+        name: name,
+        width: CONSTANTS.WORLD_WIDTH,
+        height: CONSTANTS.WORLD_HEIGHT,
+        tiles: mapData,
+        savedAt: Date.now(),
+      };
+
+      // Download as JSON
+      const blob = new Blob([JSON.stringify(saveObj, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${name.replace(/[^a-zA-Z0-9_-]/g, '_')}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      closeSaveDialog();
+    }
+
+    function closeSaveDialog() {
+      document.getElementById('save-dialog').style.display = 'none';
+      document.getElementById('overlay').style.display = 'none';
+    }
+
+    function loadMap() {
+      const input = document.getElementById('load-input');
+      input.click();
+    }
+
+    function handleLoadFile(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const data = JSON.parse(ev.target.result);
+          if (data.tiles && Array.isArray(data.tiles)) {
+            initMap(null); // blank map
+            
+            for (let y = 0; y < Math.min(data.height, CONSTANTS.WORLD_HEIGHT); y++) {
+              const row = data.tiles[y]?.split(',').map(Number) || [];
+              for (let x = 0; x < Math.min(row.length, CONSTANTS.WORLD_WIDTH); x++) {
+                if (y < map.length && x < (map[0]?.length ?? 0)) {
+                  map[y][x] = row[x];
+                }
+              }
+            }
+
+            // Center camera on map
+            cameraX = (CONSTANTS.WORLD_WIDTH * CONSTANTS.TILE_SIZE - canvas.width) / 2;
+            cameraY = (CONSTANTS.WORLD_HEIGHT * CONSTANTS.TILE_SIZE - canvas.height) / 2;
+
+            updateMapInfo();
+            render();
+          }
+        } catch (err) {
+          alert('Failed to load map: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+      input.value = ''; // reset
+    }
+
+    // ─── Build palette UI ──────────────────────────────────
+    function buildPalette() {
+      for (const def of TILE_DEFS) {
+        const btn = document.createElement('div');
+        btn.className = 'tile-btn' + (def.value === selectedTile ? ' selected' : '');
+        btn.style.background = def.color;
+        btn.textContent = def.label;
+        btn.title = def.label;
+        btn.addEventListener('click', () => {
+          selectedTile = def.value;
+          document.querySelectorAll('.tile-btn').forEach(b => b.classList.remove('selected'));
+          btn.classList.add('selected');
+          statusTool.textContent = `Tool: ${def.label}`;
+        });
+        paletteEl.appendChild(btn);
+      }
+    }
+
+    // ─── Event handlers ────────────────────────────────────
+    canvas.addEventListener('mousedown', (e) => {
+      if (e.button === 1 || e.button === 2) {
+        // Middle or right click = pan
+        isPanning = true;
+        panStartX = e.clientX;
+        panStartY = e.clientY;
+        camStartX = cameraX;
+        camStartY = cameraY;
+        canvas.style.cursor = 'grabbing';
+        e.preventDefault();
+      } else if (e.button === 0) {
+        isDrawing = true;
+        paintTile(e.offsetX, e.offsetY);
+      }
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+      // Update status bar tile coords
+      const ts = CONSTANTS.TILE_SIZE;
+      const tx = Math.floor((e.offsetX + cameraX) / ts);
+      const ty = Math.floor((e.offsetY + cameraY) / ts);
+      statusTile.textContent = `Tile: (${tx}, ${ty})`;
+
+      if (isPanning) {
+        cameraX = camStartX - (e.clientX - panStartX);
+        cameraY = camStartY - (e.clientY - panStartY);
+        render();
+      } else if (isDrawing) {
+        paintTile(e.offsetX, e.offsetY);
+      }
+    });
+
+    canvas.addEventListener('mouseup', () => {
+      isDrawing = false;
+      isPanning = false;
+      canvas.style.cursor = 'crosshair';
+    });
+
+    canvas.addEventListener('mouseleave', () => {
+      isDrawing = false;
+      isPanning = false;
+    });
+
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    // Mouse wheel zoom
+    canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      // Simple pan with scroll for now
+      cameraX += e.deltaX * 2;
+      cameraY += e.deltaY * 2;
+      render();
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        undo();
+      }
+      if (e.key === 'Escape') {
+        closeSaveDialog();
+      }
+    });
+
+    // Toolbar buttons
+    document.getElementById('btn-new').addEventListener('click', () => {
+      if (confirm('Create a new blank map? Current map will be lost.')) {
+        initMap(null);
+        render();
+      }
+    });
+
+    document.getElementById('btn-load').addEventListener('click', loadMap);
+    document.getElementById('load-input').addEventListener('change', handleLoadFile);
+    document.getElementById('btn-save').addEventListener('click', saveMap);
+    document.getElementById('btn-undo').addEventListener('click', undo);
+    document.getElementById('btn-clear').addEventListener('click', () => {
+      if (confirm('Clear all non-border tiles?')) clearMap();
+    });
+
+    document.getElementById('btn-save-cancel').addEventListener('click', closeSaveDialog);
+    document.getElementById('btn-save-confirm').addEventListener('click', confirmSave);
+    document.getElementById('overlay').addEventListener('click', closeSaveDialog);
+
+    // Brush size slider
+    brushSlider.addEventListener('input', (e) => {
+      brushSize = parseInt(e.target.value);
+      brushVal.textContent = brushSize;
+    });
+
+    // Quick fill buttons
+    document.querySelectorAll('.quick-fill').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const action = btn.dataset.action;
+        if (action === 'fill-floor') fillFloor();
+        else if (action === 'fill-walls') {
+          initMap(null); // re-init with border walls only
+          render();
+        }
+      });
+    });
+
+    // ─── Init ──────────────────────────────────────────────
+    buildPalette();
+    initMap(createDefaultMap());
+    
+    // Center camera on map
+    setTimeout(() => {
+      resizeCanvas();
+      cameraX = (CONSTANTS.WORLD_WIDTH * CONSTANTS.TILE_SIZE - canvas.width) / 2;
+      cameraY = (CONSTANTS.WORLD_HEIGHT * CONSTANTS.TILE_SIZE - canvas.height) / 2;
+      render();
+    }, 50);
+
+    window.addEventListener('resize', resizeCanvas);
+  </script>
+</body>
+</html>

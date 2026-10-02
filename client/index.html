@@ -441,7 +441,132 @@
       opacity: 0.4;
       cursor: not-allowed;
     }
-    
+
+    /* Editor link */
+    .editor-btn {
+      display: inline-block;
+      margin-bottom: 16px;
+      padding: 8px 20px;
+      background: rgba(74, 255, 139, 0.15);
+      border: 2px solid rgba(74, 255, 139, 0.4);
+      border-radius: 8px;
+      color: #4aff8b;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: bold;
+      transition: all 0.2s;
+    }
+
+    .editor-btn:hover {
+      background: rgba(74, 255, 139, 0.25);
+      border-color: #4aff8b;
+      transform: scale(1.03);
+    }
+
+    /* Lobby list */
+    #lobby-list-container {
+      max-height: 260px;
+      overflow-y: auto;
+      margin-bottom: 12px;
+    }
+
+    .lobby-item {
+      background: rgba(255, 255, 255, 0.04);
+      border: 2px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .lobby-item:hover {
+      background: rgba(74, 158, 255, 0.1);
+      border-color: rgba(74, 158, 255, 0.4);
+    }
+
+    .lobby-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .lobby-item-name {
+      font-weight: bold;
+      font-size: 14px;
+      color: white;
+    }
+
+    .lobby-item-id {
+      font-family: monospace;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.3);
+    }
+
+    .lobby-item-stats {
+      display: flex;
+      gap: 16px;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    .lobby-item-stats span {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .lobby-status-playing { color: #4aff8b; }
+    .lobby-status-voting { color: #ffcc33; }
+    .lobby-status-waiting { color: rgba(255, 255, 255, 0.4); }
+
+    /* Primary buttons */
+    .primary-btn {
+      padding: 8px 16px;
+      background: rgba(74, 158, 255, 0.2);
+      border: 1px solid rgba(74, 158, 255, 0.4);
+      color: white;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.15s;
+    }
+
+    .primary-btn:hover {
+      background: rgba(74, 158, 255, 0.35);
+      border-color: rgba(74, 158, 255, 0.6);
+    }
+
+    /* Lobby map selector */
+    #lobby-map-selector {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .lobby-map-btn {
+      padding: 4px 10px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: rgba(255, 255, 255, 0.6);
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: all 0.15s;
+    }
+
+    .lobby-map-btn:hover {
+      background: rgba(74, 158, 255, 0.15);
+      border-color: rgba(74, 158, 255, 0.3);
+    }
+
+    .lobby-map-btn.selected {
+      background: rgba(74, 158, 255, 0.3);
+      border-color: #4a9eff;
+      color: white;
+    }
+
     .controls-hint {
       position: absolute;
       bottom: 20px;
@@ -761,21 +886,46 @@
   <!-- Login / Welcome screen -->
   <div id="login-screen">
     <h1>TEEWORLDS CLONE</h1>
-    <p class="subtitle">Choose your identity and join the arena</p>
-    <div class="login-form">
+    <p class="subtitle">Choose a lobby or create your own</p>
+
+    <!-- Editor link -->
+    <a href="/editor" id="editor-link" class="editor-btn">🗺️ Map Editor</a>
+
+    <!-- Lobby selection phase -->
+    <div id="lobby-phase" class="login-form">
+      <div style="display:flex;gap:8px;margin-bottom:16px;">
+        <button id="btn-list-lobbies" class="primary-btn">Refresh Lobbies</button>
+        <button id="btn-create-lobby" class="primary-btn">+ Create Lobby</button>
+      </div>
+
+      <!-- Lobby list -->
+      <div id="lobby-list-container">
+        <p style="color:rgba(255,255,255,0.4);text-align:center;padding:20px;">Loading lobbies...</p>
+      </div>
+
+      <!-- Create lobby form (hidden initially) -->
+      <div id="create-lobby-form" style="display:none;margin-top:16px;">
+        <label>Create New Lobby</label>
+        <input type="text" id="lobby-name-input" placeholder="Lobby name..." maxlength="40" style="width:100%;padding:8px 12px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:white;border-radius:4px;margin-bottom:8px;">
+        <label>Map</label>
+        <div id="lobby-map-selector" style="margin-bottom:12px;"></div>
+        <button id="btn-confirm-create-lobby" class="primary-btn">Create & Join</button>
+      </div>
+    </div>
+
+    <!-- Name + color phase (shown after selecting a lobby) -->
+    <div id="identity-phase" class="login-form" style="display:none;">
+      <p style="color:rgba(255,255,255,0.6);margin-bottom:12px;font-size:13px;" id="selected-lobby-info"></p>
+
       <div style="width:100%">
         <label for="player-name">Player Name</label>
         <input type="text" id="player-name" placeholder="Enter your name..." maxlength="24" autocomplete="off">
       </div>
-      <div style="width:100%">
-        <label>Select Map</label>
-        <div id="map-selector"></div>
-      </div>
-      <div style="width:100%">
+      <div style="width:100%;margin-top:8px;">
         <label for="round-time-input">Round Duration (seconds)</label>
         <input type="number" id="round-time-input" value="300" min="30" max="3600" step="30" placeholder="300">
       </div>
-      <div style="width:100%">
+      <div style="width:100%;margin-top:8px;">
         <label>Team Color</label>
         <div class="color-picker">
           <canvas id="color-wheel-canvas" width="160" height="160"></canvas>
@@ -791,7 +941,8 @@
           </div>
         </div>
       </div>
-      <button id="join-btn">Join Arena</button>
+      <button id="join-btn" class="primary-btn">Join Lobby</button>
+      <button id="btn-back-to-lobbies" style="margin-top:8px;background:none;border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.6);padding:6px 14px;border-radius:4px;cursor:pointer;">← Back to Lobbies</button>
     </div>
   </div>
 

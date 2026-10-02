@@ -76,6 +76,11 @@ class GameClient {
     this.selectedTeam = 1;
     this.roundTime = 300; // Default round duration in seconds
     
+    // Lobby state
+    this.currentLobbyId = null;
+    this.selectedLobbyMap = 'default';
+    this.lobbyPhase = 'lobbies'; // 'lobbies' or 'identity'
+    
     // Timing
     this.lastFrameTime = 0;
     this.frameCount = 0;
@@ -414,15 +419,44 @@ class GameClient {
         }
       });
     });
-    
-    // Join button
+
+    // Lobby phase buttons
+    const btnListLobbies = document.getElementById('btn-list-lobbies');
+    if (btnListLobbies) {
+      btnListLobbies.addEventListener('click', () => this.listLobbies());
+    }
+
+    const btnCreateLobby = document.getElementById('btn-create-lobby');
+    if (btnCreateLobby) {
+      btnCreateLobby.addEventListener('click', () => {
+        const form = document.getElementById('create-lobby-form');
+        form.style.display = form.style.display === '' ? 'block' : '';
+      });
+    }
+
+    const btnConfirmCreate = document.getElementById('btn-confirm-create-lobby');
+    if (btnConfirmCreate) {
+      btnConfirmCreate.addEventListener('click', () => {
+        const nameInput = document.getElementById('lobby-name-input');
+        const name = nameInput?.value.trim() || '';
+        this.createLobby(name, this.selectedLobbyMap);
+      });
+    }
+
+    // Back to lobbies button
+    const btnBack = document.getElementById('btn-back-to-lobbies');
+    if (btnBack) {
+      btnBack.addEventListener('click', () => this.showLobbyPhase());
+    }
+
+    // Join lobby button (identity phase)
     const joinBtn = document.getElementById('join-btn');
     if (joinBtn) {
       joinBtn.addEventListener('click', () => {
         this.sendLogin();
       });
     }
-    
+
     // Enter key on name input triggers join
     const nameInput = document.getElementById('player-name');
     if (nameInput) {
@@ -496,8 +530,28 @@ class GameClient {
         console.warn('Login error:', message.reason);
         alert(message.reason || 'Failed to join');
         break;
-      case 'availableMaps':
-        this.handleAvailableMaps(message);
+      case 'initConnect':
+        // Server sent maps + lobbies on initial connect
+        this.availableMaps = message.maps || [];
+        if (this.availableMaps) this._renderLobbyMapSelector();
+        this.handleLobbyList(message);
+        break;
+      case 'lobbyList':
+        this.handleLobbyList(message);
+        break;
+      case 'lobbyInfo':
+        this.handleLobbyInfo(message);
+        break;
+      case 'playerJoined':
+        // Someone joined our lobby — update player list display
+        if (message.player) {
+          console.log(`[LOBBY] Player joined: ${message.player.name || message.player.playerId}`);
+        }
+        break;
+      case 'lobbyDestroyed':
+        alert(message.reason || 'Lobby was destroyed');
+        this.currentLobbyId = null;
+        this.showLobbyPhase();
         break;
       case 'roundEnd':
         this.handleRoundEnd(message);
@@ -507,6 +561,101 @@ class GameClient {
         this._handleMapSwitched();
         break;
     }
+  }
+
+  // ─── Lobby methods ──────────────────────────────────────
+
+  handleLobbyList(data) {
+    const container = document.getElementById('lobby-list-container');
+    if (!container) return;
+
+    const lobbies = data.lobbies || [];
+
+    if (lobbies.length === 0) {
+      container.innerHTML = '<p style="color:rgba(255,255,255,0.4);text-align:center;padding:20px;">No lobbies yet. Create one!</p>';
+      return;
+    }
+
+    let html = '';
+    for (const lobby of lobbies) {
+      const statusClass = lobby.votingActive ? 'lobby-status-voting' :
+                          lobby.roundActive ? 'lobby-status-playing' : 'lobby-status-waiting';
+      const statusText = lobby.votingActive ? 'Voting' :
+                         lobby.roundActive ? `${Math.ceil(lobby.roundTimer)}s` : 'Waiting';
+
+      html += `
+        <div class="lobby-item" data-lobby-id="${lobby.id}">
+          <div class="lobby-item-header">
+            <span class="lobby-item-name">${this.escapeHtml(lobby.name)}</span>
+            <span class="lobby-item-id">${lobby.id}</span>
+          </div>
+          <div class="lobby-item-stats">
+            <span>👥 ${lobby.playerCount} player${lobby.playerCount !== 1 ? 's' : ''}</span>
+            <span>🗺️ ${this.escapeHtml(lobby.mapName)}</span>
+            <span class="${statusClass}">${statusText}</span>
+          </div>
+        </div>
+      `;
+    }
+
+    container.innerHTML = html;
+
+    // Add click handlers to join lobbies
+    container.querySelectorAll('.lobby-item').forEach(el => {
+      el.addEventListener('click', () => {
+        const lobbyId = el.dataset.lobbyId;
+        this.joinLobby(lobbyId);
+      });
+    });
+  }
+
+  handleLobbyInfo(data) {
+    // We've joined a lobby — show identity phase
+    this.currentLobbyId = data.id;
+    document.getElementById('selected-lobby-info').textContent =
+      `Joining: ${this.escapeHtml(data.name)} (${data.mapName})`;
+    this.showIdentityPhase();
+  }
+
+  joinLobby(lobbyId) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: 'joinLobby', lobbyId }));
+    }
+  }
+
+  createLobby(name, mapKey) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: 'createLobby', name, mapKey }));
+    }
+  }
+
+  listLobbies() {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: 'listLobbies' }));
+    }
+  }
+
+  showLobbyPhase() {
+    this.lobbyPhase = 'lobbies';
+    const lobbyPhase = document.getElementById('lobby-phase');
+    const identityPhase = document.getElementById('identity-phase');
+    if (lobbyPhase) lobbyPhase.style.display = '';
+    if (identityPhase) identityPhase.style.display = 'none';
+    this.listLobbies();
+  }
+
+  showIdentityPhase() {
+    this.lobbyPhase = 'identity';
+    const lobbyPhase = document.getElementById('lobby-phase');
+    const identityPhase = document.getElementById('identity-phase');
+    if (lobbyPhase) lobbyPhase.style.display = 'none';
+    if (identityPhase) identityPhase.style.display = '';
+  }
+
+  escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
   }
   
   // Round/voting state
@@ -547,7 +696,26 @@ class GameClient {
       container.appendChild(btn);
     }
   }
-  
+
+  _renderLobbyMapSelector() {
+    const container = document.getElementById('lobby-map-selector');
+    if (!container || !this.availableMaps) return;
+
+    container.innerHTML = '';
+
+    for (const map of this.availableMaps) {
+      const btn = document.createElement('div');
+      btn.className = 'lobby-map-btn' + (map.key === this.selectedLobbyMap ? ' selected' : '');
+      btn.textContent = map.name;
+      btn.addEventListener('click', () => {
+        this.selectedLobbyMap = map.key;
+        container.querySelectorAll('.lobby-map-btn').forEach(el => el.classList.remove('selected'));
+        btn.classList.add('selected');
+      });
+      container.appendChild(btn);
+    }
+  }
+
   handleInit(data) {
     this.playerId = data.playerId;
     this.mapWidth = data.mapWidth;
@@ -1021,13 +1189,12 @@ class GameClient {
     this.loginName = name;
     this.selectedTeam = this.selectedTeam || 1;
     
-    // Send login credentials to server with custom color, map selection and round time
+    // Send login credentials to server (lobby context)
     this.ws.send(JSON.stringify({
       type: 'login',
       name: name,
       team: this.selectedTeam,
       color: this.selectedColorHex,
-      map: this.selectedMap,
       roundTime: this.roundTime,
     }));
   }
